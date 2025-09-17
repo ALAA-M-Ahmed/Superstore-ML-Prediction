@@ -1,22 +1,15 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib  # بدل pickle
 
-# --- عنوان التطبيق ---
 st.set_page_config(page_title="Superstore ML Prediction", layout="centered")
 st.title("📊 Superstore ML Dashboard")
 
-# --- تحميل الموديلات كـ Pipelines كاملة ---
-with open("clf_model.pkl", "rb") as f:
-    clf_model = pickle.load(f)
+# --- تحميل الموديلات والـ preprocessor ---
+clf_model, clf_preprocessor = joblib.load("clf_model.joblib")
+reg_model, reg_preprocessor = joblib.load("reg_model.joblib")
+mc_model, mc_preprocessor = joblib.load("mc_model.joblib")
 
-with open("reg_model.pkl", "rb") as f:
-    reg_model = pickle.load(f)
-
-with open("mc_model.pkl", "rb") as f:
-    mc_model = pickle.load(f)
-
-# --- إدخال بيانات المستخدم ---
 st.subheader("Enter Customer / Order Data")
 
 # Numeric inputs
@@ -32,7 +25,7 @@ category = st.selectbox("Category", ["Furniture", "Office Supplies", "Technology
 region = st.selectbox("Region", ["East", "West", "Central", "South"])
 city = st.text_input("City", value="New York")
 
-# --- تجهيز البيانات للموديل ---
+# --- تجهيز البيانات ---
 input_df = pd.DataFrame({
     'Sales': [sales],
     'Quantity': [quantity],
@@ -45,26 +38,28 @@ input_df = pd.DataFrame({
     'City': [city]
 })
 
-# --- زر التوقع ---
 if st.button("Predict"):
+    # استخدم preprocessor قبل الموديل
+    input_processed_clf = clf_preprocessor.transform(input_df)
+    input_processed_reg = reg_preprocessor.transform(input_df)
+    input_processed_mc = mc_preprocessor.transform(input_df)
+
     # Binary Classification - Loss Flag
-    loss_flag = clf_model.predict(input_df)[0]
-    loss_prob = clf_model.predict_proba(input_df)[:,1][0]
+    loss_flag = clf_model.predict(input_processed_clf)[0]
+    loss_prob = clf_model.predict_proba(input_processed_clf)[:,1][0]
 
     # Regression - Predicted Profit
-    pred_profit = reg_model.predict(input_df)[0]
+    pred_profit = reg_model.predict(input_processed_reg)[0]
 
     # Multi-class Classification - Profit Category
-    profit_cat = mc_model.predict(input_df)[0]
+    profit_cat = mc_model.predict(input_processed_mc)[0]
 
-    # --- عرض النتائج ---
     st.subheader("Predictions 🔮")
     st.write(f"🔹 Loss Flag: {'Yes' if loss_flag==1 else 'No'} (Probability: {loss_prob:.2f})")
     st.write(f"🔹 Predicted Profit: ${pred_profit:.2f}")
     st.write(f"🔹 Profit Category: {profit_cat}")
     st.success("✅ Prediction Completed!")
 
-    # --- التوصيات ---
     st.subheader("Recommendations 💡")
     if loss_flag == 1:
         st.warning("⚠️ This order is likely to lose money. Consider adjusting pricing or discount.")
